@@ -111,8 +111,10 @@ public final class ThreadDeathWatcher {
         Thread watcherThread = ThreadDeathWatcher.watcherThread;
         if (watcherThread != null) {
             watcherThread.join(unit.toMillis(timeout));
+            return !watcherThread.isAlive();
+        } else {
+            return true;
         }
-        return !watcherThread.isAlive();
     }
 
     private ThreadDeathWatcher() { }
