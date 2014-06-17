@@ -127,6 +127,10 @@ public final class ThreadDeathWatcher {
                 fetchWatchees();
                 notifyWatchees();
 
+                // Try once again just in case notifyWatchees() triggered watch() or unwatch().
+                fetchWatchees();
+                notifyWatchees();
+
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException ignore) {
