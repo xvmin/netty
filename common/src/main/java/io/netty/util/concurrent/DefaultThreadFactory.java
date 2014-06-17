@@ -16,6 +16,7 @@
 
 package io.netty.util.concurrent;
 
+import io.netty.util.internal.FastThreadLocal;
 import io.netty.util.internal.FastThreadLocalThread;
 import io.netty.util.internal.StringUtil;
 
@@ -122,5 +123,27 @@ public class DefaultThreadFactory implements ThreadFactory {
 
     protected Thread newThread(Runnable r, String name) {
         return new FastThreadLocalThread(r, name);
+    }
+
+    protected Runnable decorateRunnable(Runnable r) {
+        return new DefaultRunnableDecorator(r);
+    }
+
+    private static final class DefaultRunnableDecorator implements Runnable {
+
+        private final Runnable r;
+
+        DefaultRunnableDecorator(Runnable r) {
+            this.r = r;
+        }
+
+        @Override
+        public void run() {
+            try {
+                r.run();
+            } finally {
+                FastThreadLocal.removeAll();
+            }
+        }
     }
 }

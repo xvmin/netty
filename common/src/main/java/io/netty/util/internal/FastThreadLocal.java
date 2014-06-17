@@ -15,6 +15,15 @@
  */
 package io.netty.util.internal;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.DefaultThreadFactory;
+import io.netty.util.internal.chmv8.ConcurrentHashMapV8;
+
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -28,12 +37,85 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @param <V>
  */
 public class FastThreadLocal<V> extends ThreadLocal<V> {
+
     static final Object EMPTY = new Object();
 
     private static final AtomicInteger NEXT_INDEX = new AtomicInteger(0);
+
+    /**
+     * Keeps the live threads and their thread-local variables.
+     *
+     * A new entry is added by {@link #add(Thread, FastThreadLocal)}.
+     * An entry is removed by:
+     *
+     * - {@link RemoveTask#run()} invoked by {@link ThreadDeathWatcher} when the thread dies, or
+     * - {@link #removeAll()} invoked by a user or {@link DefaultThreadFactory}'s default decorator task.
+     *
+     * Note that we do not use {@link ConcurrentHashMapV8} or {@link PlatformDependent#newConcurrentHashMap()}
+     * because we use our own thread-local variables there, too.
+     */
+    private static final Map<Thread, RemoveTask> allThreads = new ConcurrentHashMap<Thread, RemoveTask>();
+
+    /**
+     * Removes all thread local variables initialized by {@link FastThreadLocal} in the current thread.
+     */
+    public static void removeAll() {
+        removeAll(Thread.currentThread());
+    }
+
+    private static void removeAll(Thread thread) {
+        RemoveTask task = allThreads.remove(thread);
+        if (task != null) {
+            ThreadDeathWatcher.unwatch(thread, task);
+            for (ThreadLocal<?> v: task.threadLocals) {
+                v.remove();
+            }
+        }
+    }
+
+    /**
+     * Adds the specified thread-local variable to the list of all initialized thread-local variables.
+     */
+    static void add(Thread currentThread, FastThreadLocal<?> variable) {
+        assert currentThread == Thread.currentThread();
+        RemoveTask task = allThreads.get(currentThread);
+        if (task == null) {
+            task = new RemoveTask(currentThread);
+            allThreads.put(currentThread, task);
+            ThreadDeathWatcher.watch(currentThread, task);
+        }
+
+        task.threadLocals.add(variable);
+    }
+
+    private static final class RemoveTask implements Runnable {
+
+        private final Thread thread;
+
+        /**
+         * Why use Set instead of List or Queue?
+         * To avoid duplicate insertion when a thread-local variable is removed and then initialized again.
+         */
+        private final Set<FastThreadLocal<?>> threadLocals =
+                Collections.newSetFromMap(new IdentityHashMap<FastThreadLocal<?>, Boolean>());
+
+        RemoveTask(Thread thread) {
+            this.thread = thread;
+        }
+
+        /**
+         * Invoked by {@link ThreadDeathWatcher} when a user did not call {@link #removeAll()} before the thread dies.
+         */
+        @Override
+        public void run() {
+            allThreads.remove(thread);
+        }
+    }
+
     private final ThreadLocal<V> fallback = new ThreadLocal<V>() {
         @Override
         protected V initialValue() {
+            add(Thread.currentThread(), FastThreadLocal.this);
             return FastThreadLocal.this.initialValue();
         }
     };
@@ -75,7 +157,13 @@ public class FastThreadLocal<V> extends ThreadLocal<V> {
             fallback.remove();
             return;
         }
-        Object[] lookup = ((FastThreadLocalThread) thread).lookup;
+
+        FastThreadLocalThread fastThread = (FastThreadLocalThread) thread;
+        remove(fastThread);
+    }
+
+    void remove(FastThreadLocalThread fastThread) {
+        Object[] lookup = fastThread.lookup;
         if (index >= lookup.length) {
             return;
         }
@@ -97,12 +185,14 @@ public class FastThreadLocal<V> extends ThreadLocal<V> {
         Object[] lookup = fastThread.lookup;
         Object v;
         if (index >= lookup.length) {
+            add(thread, this);
             v = initialValue();
             lookup = fastThread.expandArray(index);
             lookup[index] = v;
         } else {
             v = lookup[index];
             if (v == EMPTY) {
+                add(thread, this);
                 v = initialValue();
                 lookup[index] = v;
             }

@@ -16,7 +16,6 @@
 
 package io.netty.buffer;
 
-import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.internal.FastThreadLocal;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.SystemPropertyUtil;
@@ -284,10 +283,18 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
 
     final class PoolThreadLocalCache extends FastThreadLocal<PoolThreadCache> {
         private final AtomicInteger index = new AtomicInteger();
-        private boolean initialized;
 
         @Override
-        protected PoolThreadCache initialValue() {
+        public PoolThreadCache get() {
+            PoolThreadCache cache = super.get();
+            if (cache != null) {
+                return cache;
+            }
+
+            return initialize();
+        }
+
+        private PoolThreadCache initialize() {
             final int idx = index.getAndIncrement();
             final PoolArena<byte[]> heapArena;
             final PoolArena<ByteBuffer> directArena;
@@ -307,21 +314,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
             final PoolThreadCache cache = new PoolThreadCache(
                     heapArena, directArena, tinyCacheSize, smallCacheSize, normalCacheSize,
                     DEFAULT_MAX_CACHED_BUFFER_CAPACITY, DEFAULT_CACHE_TRIM_INTERVAL);
-
-            // The thread-local cache will keep a list of pooled buffers which must be returned to
-            // the pool when the thread is not alive anymore.
-            final Thread thread = Thread.currentThread();
-            ThreadDeathWatcher.watch(thread, new Runnable() {
-                @Override
-                public void run() {
-                    int numFreed = cache.free();
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Freed {} thread-local buffer(s) from thread: {}", numFreed, thread.getName());
-                    }
-                }
-            });
-
-            initialized = true;
+            set(cache);
             return cache;
         }
 
@@ -331,7 +324,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
          */
         @Deprecated
         public boolean exists() {
-            return initialized;
+            return super.get() != null;
         }
 
         /**
@@ -339,10 +332,17 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
          */
         @Deprecated
         public void free() {
-            if (exists()) {
-                PoolThreadCache cache = get();
+            PoolThreadCache cache = super.get();
+            if (cache != null) {
                 cache.free();
             }
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public void remove() {
+            free();
+            super.remove();
         }
     }
 
