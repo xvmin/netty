@@ -55,7 +55,7 @@ final class PoolThreadCache {
     private final Runnable freeTask = new Runnable() {
         @Override
         public void run() {
-            free();
+            free0();
         }
     };
 
@@ -212,6 +212,11 @@ final class PoolThreadCache {
      *  Should be called if the Thread that uses this cache is about to exist to release resources out of the cache
      */
     void free() {
+        ThreadDeathWatcher.unwatch(thread, freeTask);
+        free0();
+    }
+
+    private void free0() {
         int numFreed = free(tinySubPageDirectCaches) +
                 free(smallSubPageDirectCaches) +
                 free(normalDirectCaches) +
@@ -222,8 +227,6 @@ final class PoolThreadCache {
         if (numFreed > 0 && logger.isDebugEnabled()) {
             logger.debug("Freed {} thread-local buffer(s) from thread: {}", numFreed, thread.getName());
         }
-
-        ThreadDeathWatcher.unwatch(thread, freeTask);
     }
 
     private static int free(MemoryRegionCache<?>[] caches) {
