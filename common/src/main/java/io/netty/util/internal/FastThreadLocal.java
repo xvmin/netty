@@ -67,7 +67,7 @@ public class FastThreadLocal<V> extends ThreadLocal<V> {
         RemoveTask task = allThreads.remove(thread);
         if (task != null) {
             ThreadDeathWatcher.unwatch(thread, task);
-            for (ThreadLocal<?> v: task.threadLocals) {
+            for (FastThreadLocal<?> v: task.threadLocals) {
                 v.remove();
             }
         }
@@ -158,12 +158,7 @@ public class FastThreadLocal<V> extends ThreadLocal<V> {
             return;
         }
 
-        FastThreadLocalThread fastThread = (FastThreadLocalThread) thread;
-        remove(fastThread);
-    }
-
-    void remove(FastThreadLocalThread fastThread) {
-        Object[] lookup = fastThread.lookup;
+        Object[] lookup = ((FastThreadLocalThread) thread).lookup;
         if (index >= lookup.length) {
             return;
         }
