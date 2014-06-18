@@ -19,9 +19,6 @@ package io.netty.util.internal;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.text.DateFormat;
 import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -130,10 +127,6 @@ public final class InternalThreadLocalMap {
     private Map<Charset, CharsetDecoder> charsetDecoderCache;
 
     // HTTP, SSL, etc
-    private DateFormat httpHeaderDateFormat;
-    private MessageDigest messageDigestSha1;
-    private Object tmp;
-
     InternalThreadLocalMap() {
         Object[] array = new Object[32];
         Arrays.fill(array, UNSET);
@@ -148,14 +141,6 @@ public final class InternalThreadLocalMap {
             builder.setLength(0);
         }
         return builder;
-    }
-
-    public DateFormat httpHeaderDateFormat() {
-        return httpHeaderDateFormat;
-    }
-
-    public void setHttpHeaderDateFormat(DateFormat httpHeaderDateFormat) {
-        this.httpHeaderDateFormat = httpHeaderDateFormat;
     }
 
     public Map<Charset, CharsetEncoder> charsetEncoderCache() {
@@ -214,21 +199,6 @@ public final class InternalThreadLocalMap {
         this.counterHashCode = counterHashCode;
     }
 
-    public MessageDigest messageDigestSha1() {
-        MessageDigest md = messageDigestSha1;
-        if (md == null) {
-            try {
-                messageDigestSha1 = md = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                // All Java implementation must have SHA1 digest algorithm.
-                throw new Error(e);
-            }
-        }
-
-        md.reset();
-        return md;
-    }
-
     public Map<Class<?>, Boolean> handlerSharableCache() {
         Map<Class<?>, Boolean> cache = handlerSharableCache;
         if (cache == null) {
@@ -244,20 +214,6 @@ public final class InternalThreadLocalMap {
 
     public void setLocalChannelReaderStackDepth(int localChannelReaderStackDepth) {
         this.localChannelReaderStackDepth = localChannelReaderStackDepth;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T> T tmp() {
-        return (T) tmp;
-    }
-
-    public void setTmp(Object tmp) {
-        this.tmp = tmp;
-    }
-
-    public <T> T setAndGetTmp(T tmp) {
-        this.tmp = tmp;
-        return tmp;
     }
 
     public Object indexedVariable(int index) {

@@ -16,7 +16,7 @@
 
 package io.netty.handler.ssl.util;
 
-import io.netty.util.internal.InternalThreadLocalMap;
+import io.netty.util.internal.FastThreadLocal;
 
 import javax.net.ssl.ManagerFactoryParameters;
 import javax.net.ssl.TrustManager;
@@ -37,6 +37,22 @@ public abstract class SimpleTrustManagerFactory extends TrustManagerFactory {
     };
 
     /**
+     * {@link SimpleTrustManagerFactorySpi} must have a reference to {@link SimpleTrustManagerFactory}
+     * to delegate its callbacks back to {@link SimpleTrustManagerFactory}.  However, it is impossible to do so,
+     * because {@link TrustManagerFactory} requires {@link TrustManagerFactorySpi} at construction time and
+     * does not provide a way to access it later.
+     *
+     * To work around this issue, we use an ugly hack which uses a {@link ThreadLocal}.
+     */
+    private static final FastThreadLocal<SimpleTrustManagerFactorySpi> CURRENT_SPI =
+            new FastThreadLocal<SimpleTrustManagerFactorySpi>() {
+                @Override
+                protected SimpleTrustManagerFactorySpi initialValue() {
+                    return new SimpleTrustManagerFactorySpi();
+                }
+            };
+
+    /**
      * Creates a new instance.
      */
     protected SimpleTrustManagerFactory() {
@@ -49,22 +65,9 @@ public abstract class SimpleTrustManagerFactory extends TrustManagerFactory {
      * @param name the name of this {@link TrustManagerFactory}
      */
     protected SimpleTrustManagerFactory(String name) {
-        /*
-         * SimpleTrustManagerFactorySpi must have a reference to SimpleTrustManagerFactory to delegate its callbacks
-         * back to SimpleTrustManagerFactory.  However, it is impossible to do so, because TrustManagerFactory requires
-         * TrustManagerFactorySpi at construction time and does not provide a way to access it later.
-         *
-         * To work around this issue, we use an ugly hack which uses a temporary thread-local variable.
-         */
-        super(InternalThreadLocalMap.get().setAndGetTmp(new SimpleTrustManagerFactorySpi()), PROVIDER, name);
-
-        InternalThreadLocalMap threadLocals = InternalThreadLocalMap.get();
-        try {
-            SimpleTrustManagerFactorySpi spi = threadLocals.tmp();
-            spi.init(this);
-        } finally {
-            threadLocals.setTmp(null);
-        }
+        super(CURRENT_SPI.get(), PROVIDER, name);
+        CURRENT_SPI.get().init(this);
+        CURRENT_SPI.remove();
 
         if (name == null) {
             throw new NullPointerException("name");
