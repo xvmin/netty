@@ -232,12 +232,20 @@ public final class InternalThreadLocalMap {
         return lookup[index];
     }
 
-    public void setIndexedVariable(int index, Object value) {
+    /**
+     * @return {@code true} if and only if a new thread-local variable has been created
+     */
+    public boolean setIndexedVariable(int index, Object value) {
         Object[] lookup = indexedVariables;
         if (index >= lookup.length) {
             lookup = expandArray(index);
+            lookup[index] = value;
+            return true;
+        } else {
+            Object oldValue = lookup[index];
+            lookup[index] = value;
+            return oldValue == UNSET;
         }
-        lookup[index] = value;
     }
 
     public void removeIndexedVariable(int index) {

@@ -139,10 +139,10 @@ public class FastThreadLocal<V> {
      * Set the value for the current thread.
      */
     public final void set(V value) {
-        if (value == InternalThreadLocalMap.UNSET) {
-            remove();
-        } else {
+        if (value != InternalThreadLocalMap.UNSET) {
             set(InternalThreadLocalMap.get(), value);
+        } else {
+            remove();
         }
     }
 
@@ -150,10 +150,12 @@ public class FastThreadLocal<V> {
      * Set the value for the specified thread local map. The specified thread local map must be for the current thread.
      */
     public void set(InternalThreadLocalMap threadLocalMap, V value) {
-        if (value == InternalThreadLocalMap.UNSET) {
-            remove(threadLocalMap);
+        if (value != InternalThreadLocalMap.UNSET) {
+            if (threadLocalMap.setIndexedVariable(index, value)) {
+                addToVariablesToRemove(threadLocalMap, this);
+            }
         } else {
-            threadLocalMap.setIndexedVariable(index, value);
+            remove(threadLocalMap);
         }
     }
 
