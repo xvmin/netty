@@ -92,7 +92,7 @@ public final class InternalThreadLocalMap {
         }
     }
 
-    public static void destroy() {
+    static void destroy() {
         slowThreadLocalMap = null;
     }
 

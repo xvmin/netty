@@ -53,6 +53,10 @@ public class FastThreadLocal<V> {
         }
     }
 
+    public static void destroy() {
+        InternalThreadLocalMap.destroy();
+    }
+
     @SuppressWarnings("unchecked")
     private static void addToVariablesToRemove(InternalThreadLocalMap threadLocalMap, FastThreadLocal<?> variable) {
         Object v = threadLocalMap.indexedVariable(variablesToRemoveIndex);
