@@ -19,7 +19,7 @@ package io.netty.handler.ssl.util;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.util.internal.EmptyArrays;
-import io.netty.util.internal.FastThreadLocal;
+import io.netty.util.internal.InternalThreadLocalMap;
 
 import javax.net.ssl.ManagerFactoryParameters;
 import javax.net.ssl.TrustManager;
@@ -27,7 +27,6 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import java.security.KeyStore;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -68,18 +67,6 @@ public final class FingerprintTrustManagerFactory extends SimpleTrustManagerFact
     private static final int SHA1_BYTE_LEN = 20;
     private static final int SHA1_HEX_LEN = SHA1_BYTE_LEN * 2;
 
-    private static final ThreadLocal<MessageDigest> tlmd = new FastThreadLocal<MessageDigest>() {
-        @Override
-        protected MessageDigest initialValue() {
-            try {
-                return MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                // All Java implementation must have SHA1 digest algorithm.
-                throw new Error(e);
-            }
-        }
-    };
-
     private final TrustManager tm = new X509TrustManager() {
 
         @Override
@@ -110,8 +97,7 @@ public final class FingerprintTrustManagerFactory extends SimpleTrustManagerFact
         }
 
         private byte[] fingerprint(X509Certificate cert) throws CertificateEncodingException {
-            MessageDigest md = tlmd.get();
-            md.reset();
+            MessageDigest md = InternalThreadLocalMap.get().messageDigestSha1();
             return md.digest(cert.getEncoded());
         }
 

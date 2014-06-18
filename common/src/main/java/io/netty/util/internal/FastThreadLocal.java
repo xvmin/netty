@@ -15,16 +15,9 @@
  */
 package io.netty.util.internal;
 
-import io.netty.util.ThreadDeathWatcher;
-import io.netty.util.concurrent.DefaultThreadFactory;
-import io.netty.util.internal.chmv8.ConcurrentHashMapV8;
-
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A special {@link ThreadLocal} which is operating over a predefined array, so it always operate in O(1) when called
@@ -36,162 +29,147 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @param <V>
  */
-public class FastThreadLocal<V> extends ThreadLocal<V> {
+public class FastThreadLocal<V> {
 
-    static final Object EMPTY = new Object();
+    private static final int variablesToRemoveIndex = InternalThreadLocalMap.nextVariableIndex();
 
-    private static final AtomicInteger NEXT_INDEX = new AtomicInteger(0);
-
-    /**
-     * Keeps the live threads and their thread-local variables.
-     *
-     * A new entry is added by {@link #add(Thread, FastThreadLocal)}.
-     * An entry is removed by:
-     *
-     * - {@link RemoveTask#run()} invoked by {@link ThreadDeathWatcher} when the thread dies, or
-     * - {@link #removeAll()} invoked by a user or {@link DefaultThreadFactory}'s default decorator task.
-     *
-     * Note that we do not use {@link ConcurrentHashMapV8} or {@link PlatformDependent#newConcurrentHashMap()}
-     * because we use our own thread-local variables there, too.
-     */
-    private static final Map<Thread, RemoveTask> allThreads = new ConcurrentHashMap<Thread, RemoveTask>();
-
-    /**
-     * Removes all thread local variables initialized by {@link FastThreadLocal} in the current thread.
-     */
     public static void removeAll() {
-        removeAll(Thread.currentThread());
-    }
+        InternalThreadLocalMap threadLocalMap = InternalThreadLocalMap.getIfSet();
+        if (threadLocalMap == null) {
+            return;
+        }
 
-    private static void removeAll(Thread thread) {
-        RemoveTask task = allThreads.remove(thread);
-        if (task != null) {
-            ThreadDeathWatcher.unwatch(thread, task);
-            for (FastThreadLocal<?> v: task.threadLocals) {
-                v.remove();
+        try {
+            Object v = threadLocalMap.indexedVariable(variablesToRemoveIndex);
+            if (v != null && v != InternalThreadLocalMap.UNSET) {
+                @SuppressWarnings("unchecked")
+                Set<FastThreadLocal<?>> variablesToRemove = (Set<FastThreadLocal<?>>) v;
+                for (FastThreadLocal<?> tlv: variablesToRemove) {
+                    tlv.remove(threadLocalMap);
+                }
             }
+        } finally {
+            InternalThreadLocalMap.remove();
         }
     }
 
-    /**
-     * Adds the specified thread-local variable to the list of all initialized thread-local variables.
-     */
-    static void add(Thread currentThread, FastThreadLocal<?> variable) {
-        assert currentThread == Thread.currentThread();
-        RemoveTask task = allThreads.get(currentThread);
-        if (task == null) {
-            task = new RemoveTask(currentThread);
-            allThreads.put(currentThread, task);
-            ThreadDeathWatcher.watch(currentThread, task);
+    @SuppressWarnings("unchecked")
+    private static void addToVariablesToRemove(InternalThreadLocalMap threadLocalMap, FastThreadLocal<?> variable) {
+        Object v = threadLocalMap.indexedVariable(variablesToRemoveIndex);
+        Set<FastThreadLocal<?>> variablesToRemove;
+        if (v == InternalThreadLocalMap.UNSET || v == null) {
+            variablesToRemove = Collections.newSetFromMap(new IdentityHashMap<FastThreadLocal<?>, Boolean>());
+            threadLocalMap.setIndexedVariable(variablesToRemoveIndex, variablesToRemove);
+        } else {
+            variablesToRemove = (Set<FastThreadLocal<?>>) v;
         }
 
-        task.threadLocals.add(variable);
+        variablesToRemove.add(variable);
     }
 
-    private static final class RemoveTask implements Runnable {
+    private static void removeFromVariablesToRemove(
+            InternalThreadLocalMap threadLocalMap, FastThreadLocal<?> variable) {
 
-        private final Thread thread;
+        Object v = threadLocalMap.indexedVariable(variablesToRemoveIndex);
 
-        /**
-         * Why use Set instead of List or Queue?
-         * To avoid duplicate insertion when a thread-local variable is removed and then initialized again.
-         */
-        private final Set<FastThreadLocal<?>> threadLocals =
-                Collections.newSetFromMap(new IdentityHashMap<FastThreadLocal<?>, Boolean>());
-
-        RemoveTask(Thread thread) {
-            this.thread = thread;
+        if (v == InternalThreadLocalMap.UNSET || v == null) {
+            return;
         }
 
-        /**
-         * Invoked by {@link ThreadDeathWatcher} when a user did not call {@link #removeAll()} before the thread dies.
-         */
-        @Override
-        public void run() {
-            allThreads.remove(thread);
-        }
+        @SuppressWarnings("unchecked")
+        Set<FastThreadLocal<?>> variablesToRemove = (Set<FastThreadLocal<?>>) v;
+        variablesToRemove.remove(variable);
     }
 
-    private final ThreadLocal<V> fallback = new ThreadLocal<V>() {
-        @Override
-        protected V initialValue() {
-            add(Thread.currentThread(), FastThreadLocal.this);
-            return FastThreadLocal.this.initialValue();
-        }
-    };
     private final int index;
 
     public FastThreadLocal() {
-        index = NEXT_INDEX.getAndIncrement();
-        if (index < 0) {
-            NEXT_INDEX.decrementAndGet();
-            throw new IllegalStateException("Maximal number (" + Integer.MAX_VALUE + ") of FastThreadLocal exceeded");
-        }
+        index = InternalThreadLocalMap.nextVariableIndex();
     }
 
     /**
-     * Set the value for the current thread
+     * Returns the current value for the current thread
      */
-    @Override
-    public void set(V value) {
-        Thread thread = Thread.currentThread();
-        if (!(thread instanceof FastThreadLocalThread)) {
-            fallback.set(value);
-            return;
-        }
-        FastThreadLocalThread fastThread = (FastThreadLocalThread) thread;
-        Object[] lookup = fastThread.lookup;
-        if (index >= lookup.length) {
-            lookup = fastThread.expandArray(index);
-        }
-        lookup[index] = value;
+    public final V get() {
+        return get(InternalThreadLocalMap.get());
     }
 
     /**
-     * Sets the value to uninitialized; a proceeding call to get() will trigger a call to initialValue()
+     * Returns the current value for the specified thread local map.
+     * The specified thread local map must be for the current thread.
      */
-    @Override
-    public void remove() {
-        Thread thread = Thread.currentThread();
-        if (!(thread instanceof FastThreadLocalThread)) {
-            fallback.remove();
-            return;
-        }
-
-        Object[] lookup = ((FastThreadLocalThread) thread).lookup;
-        if (index >= lookup.length) {
-            return;
-        }
-        lookup[index] = EMPTY;
-    }
-
-    /**
-     * @return the current value for the current thread
-     */
-    @Override
     @SuppressWarnings("unchecked")
-    public V get() {
-        Thread thread = Thread.currentThread();
-        if (!(thread instanceof FastThreadLocalThread)) {
-            return fallback.get();
-        }
-        FastThreadLocalThread fastThread = (FastThreadLocalThread) thread;
-
-        Object[] lookup = fastThread.lookup;
-        Object v;
-        if (index >= lookup.length) {
-            add(thread, this);
+    public V get(InternalThreadLocalMap threadLocalMap) {
+        Object v = threadLocalMap.indexedVariable(index);
+        if (v == InternalThreadLocalMap.UNSET) {
             v = initialValue();
-            lookup = fastThread.expandArray(index);
-            lookup[index] = v;
-        } else {
-            v = lookup[index];
-            if (v == EMPTY) {
-                add(thread, this);
-                v = initialValue();
-                lookup[index] = v;
-            }
+            threadLocalMap.setIndexedVariable(index, v);
+            addToVariablesToRemove(threadLocalMap, this);
         }
         return (V) v;
+    }
+
+    /**
+     * Set the value for the current thread.
+     */
+    public final void set(V value) {
+        if (value == InternalThreadLocalMap.UNSET) {
+            remove();
+        } else {
+            set(InternalThreadLocalMap.get(), value);
+        }
+    }
+
+    /**
+     * Set the value for the specified thread local map. The specified thread local map must be for the current thread.
+     */
+    public void set(InternalThreadLocalMap threadLocalMap, V value) {
+        if (value == InternalThreadLocalMap.UNSET) {
+            remove(threadLocalMap);
+        } else {
+            threadLocalMap.setIndexedVariable(index, value);
+        }
+    }
+
+    /**
+     * Returns {@code true} if and only if this thread-local variable is set.
+     */
+    public final boolean isSet() {
+        return isSet(InternalThreadLocalMap.getIfSet());
+    }
+
+    /**
+     * Returns {@code true} if and only if this thread-local variable is set.
+     * The specified thread local map must be for the current thread.
+     */
+    public boolean isSet(InternalThreadLocalMap threadLocalMap) {
+        return threadLocalMap != null && threadLocalMap.isIndexedVariableSet(index);
+    }
+    /**
+     * Sets the value to uninitialized; a proceeding call to get() will trigger a call to initialValue().
+     */
+    public final void remove() {
+        remove(InternalThreadLocalMap.getIfSet());
+    }
+
+    /**
+     * Sets the value to uninitialized for the specified thread local map;
+     * a proceeding call to get() will trigger a call to initialValue().
+     * The specified thread local map must be for the current thread.
+     */
+    public void remove(InternalThreadLocalMap threadLocalMap) {
+        if (threadLocalMap == null) {
+            return;
+        }
+
+        threadLocalMap.removeIndexedVariable(index);
+        removeFromVariablesToRemove(threadLocalMap, this);
+    }
+
+    /**
+     * Returns the initial value for this thread-local variable.
+     */
+    protected V initialValue() {
+        return null;
     }
 }

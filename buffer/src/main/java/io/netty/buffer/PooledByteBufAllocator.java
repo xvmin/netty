@@ -17,6 +17,7 @@
 package io.netty.buffer;
 
 import io.netty.util.internal.FastThreadLocal;
+import io.netty.util.internal.InternalThreadLocalMap;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.SystemPropertyUtil;
 import io.netty.util.internal.logging.InternalLogger;
@@ -285,8 +286,8 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
         private final AtomicInteger index = new AtomicInteger();
 
         @Override
-        public PoolThreadCache get() {
-            PoolThreadCache cache = super.get();
+        public PoolThreadCache get(InternalThreadLocalMap threadLocalMap) {
+            PoolThreadCache cache = super.get(threadLocalMap);
             if (cache != null) {
                 return cache;
             }
@@ -324,7 +325,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
          */
         @Deprecated
         public boolean exists() {
-            return super.get() != null;
+            return isSet();
         }
 
         /**
@@ -332,17 +333,16 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
          */
         @Deprecated
         public void free() {
-            PoolThreadCache cache = super.get();
-            if (cache != null) {
-                cache.free();
+            if (isSet()) {
+                get().free();
             }
         }
 
         @Override
         @SuppressWarnings("deprecation")
-        public void remove() {
+        public void remove(InternalThreadLocalMap threadLocalMap) {
             free();
-            super.remove();
+            super.remove(threadLocalMap);
         }
     }
 

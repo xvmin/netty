@@ -15,7 +15,7 @@
  */
 package io.netty.handler.codec.http;
 
-import io.netty.util.internal.FastThreadLocal;
+import io.netty.util.internal.InternalThreadLocalMap;
 
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
@@ -39,16 +39,14 @@ final class HttpHeaderDateFormat extends SimpleDateFormat {
     private final SimpleDateFormat format1 = new HttpHeaderDateFormatObsolete1();
     private final SimpleDateFormat format2 = new HttpHeaderDateFormatObsolete2();
 
-    private static final ThreadLocal<HttpHeaderDateFormat> dateFormatThreadLocal =
-            new FastThreadLocal<HttpHeaderDateFormat>() {
-                @Override
-                protected HttpHeaderDateFormat initialValue() {
-                    return new HttpHeaderDateFormat();
-                }
-            };
-
     static HttpHeaderDateFormat get() {
-        return dateFormatThreadLocal.get();
+        InternalThreadLocalMap threadLocals = InternalThreadLocalMap.get();
+        HttpHeaderDateFormat format = (HttpHeaderDateFormat) threadLocals.httpHeaderDateFormat();
+        if (format == null) {
+            format = new HttpHeaderDateFormat();
+            threadLocals.setHttpHeaderDateFormat(format);
+        }
+        return format;
     }
 
     /**

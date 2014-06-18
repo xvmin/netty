@@ -16,8 +16,6 @@
 
 package io.netty.util;
 
-import io.netty.util.internal.FastThreadLocal;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -28,13 +26,6 @@ import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.*;
 
 public class ThreadDeathWatcherTest {
-
-    @BeforeClass
-    public static void beforeClass() throws Exception {
-        // Remove the cruft from the previous tests.
-        FastThreadLocal.removeAll();
-        assertThat(ThreadDeathWatcher.awaitInactivity(10, TimeUnit.SECONDS), is(true));
-    }
 
     @Test(timeout = 10000)
     public void testWatch() throws Exception {
