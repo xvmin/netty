@@ -98,7 +98,7 @@ public class DefaultThreadFactory implements ThreadFactory {
 
     @Override
     public Thread newThread(Runnable r) {
-        Thread t = newThread(r, prefix + nextId.incrementAndGet());
+        Thread t = newThread(new DefaultRunnableDecorator(r), prefix + nextId.incrementAndGet());
         try {
             if (t.isDaemon()) {
                 if (!daemon) {
@@ -121,10 +121,6 @@ public class DefaultThreadFactory implements ThreadFactory {
 
     protected Thread newThread(Runnable r, String name) {
         return new FastThreadLocalThread(r, name);
-    }
-
-    protected Runnable decorateRunnable(Runnable r) {
-        return new DefaultRunnableDecorator(r);
     }
 
     private static final class DefaultRunnableDecorator implements Runnable {
