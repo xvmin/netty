@@ -70,6 +70,18 @@ public class FastThreadLocal<V> {
     }
 
     /**
+     * Returns the number of thread local variables bound to the current thread.
+     */
+    public static int size() {
+        InternalThreadLocalMap threadLocalMap = InternalThreadLocalMap.getIfSet();
+        if (threadLocalMap == null) {
+            return 0;
+        } else {
+            return threadLocalMap.size();
+        }
+    }
+
+    /**
      * Destroys the data structure that keeps all {@link FastThreadLocal} variables accessed from
      * non-{@link FastThreadLocalThread}s.  This operation is useful when you are in a container environment, and you
      * do not want to leave the thread local variables in the threads you do not manage.  Call this method when your

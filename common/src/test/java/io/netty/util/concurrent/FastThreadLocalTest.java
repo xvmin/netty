@@ -14,10 +14,10 @@
  * under the License.
  */
 
-package io.netty.util.internal;
+package io.netty.util.concurrent;
 
-import io.netty.util.concurrent.FastThreadLocal;
-import io.netty.util.concurrent.FastThreadLocalThread;
+import io.netty.util.internal.InternalThreadLocalMap;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,6 +28,11 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.*;
 
 public class FastThreadLocalTest {
+    @Before
+    public void setUp() {
+        FastThreadLocal.removeAll();
+        assertThat(FastThreadLocal.size(), is(0));
+    }
 
     @Test(timeout = 10000)
     public void testRemoveAll() throws Exception {
@@ -42,10 +47,12 @@ public class FastThreadLocalTest {
 
         // Initialize a thread-local variable.
         assertThat(var.get(), is(nullValue()));
+        assertThat(FastThreadLocal.size(), is(1));
 
         // And then remove it.
         FastThreadLocal.removeAll();
         assertThat(removed.get(), is(true));
+        assertThat(FastThreadLocal.size(), is(0));
     }
 
     @Test(timeout = 10000)

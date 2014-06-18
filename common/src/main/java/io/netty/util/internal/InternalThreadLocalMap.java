@@ -139,6 +139,51 @@ public final class InternalThreadLocalMap {
         indexedVariables = array;
     }
 
+    public int size() {
+        int count = 0;
+
+        if (futureListenerStackDepth != 0) {
+            count ++;
+        }
+        if (localChannelReaderStackDepth != 0) {
+            count ++;
+        }
+        if (handlerSharableCache != null) {
+            count ++;
+        }
+        if (counterHashCode != null) {
+            count ++;
+        }
+        if (random != null) {
+            count ++;
+        }
+        if (typeParameterMatcherGetCache != null) {
+            count ++;
+        }
+        if (typeParameterMatcherFindCache != null) {
+            count ++;
+        }
+        if (stringBuilder != null) {
+            count ++;
+        }
+        if (charsetEncoderCache != null) {
+            count ++;
+        }
+        if (charsetDecoderCache != null) {
+            count ++;
+        }
+
+        for (Object o: indexedVariables) {
+            if (o != UNSET) {
+                count ++;
+            }
+        }
+
+        // We should subtract 1 from the count because the first element in 'indexedVariables' is reserved
+        // by 'FastThreadLocal' to keep the list of 'FastThreadLocal's to remove on 'FastThreadLocal.removeAll()'.
+        return count - 1;
+    }
+
     public StringBuilder stringBuilder() {
         StringBuilder builder = stringBuilder;
         if (builder == null) {
