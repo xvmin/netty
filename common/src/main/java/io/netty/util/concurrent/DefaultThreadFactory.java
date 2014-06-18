@@ -16,8 +16,6 @@
 
 package io.netty.util.concurrent;
 
-import io.netty.util.internal.FastThreadLocal;
-import io.netty.util.internal.FastThreadLocalThread;
 import io.netty.util.internal.StringUtil;
 
 import java.util.Locale;

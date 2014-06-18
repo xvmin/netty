@@ -13,15 +13,16 @@
 * License for the specific language governing permissions and limitations
 * under the License.
 */
-package io.netty.util.internal;
+package io.netty.util.concurrent;
+
+import io.netty.util.internal.InternalThreadLocalMap;
 
 /**
- * To utilise the {@link FastThreadLocal} fast-path, all threads accessing a {@link FastThreadLocal} must extend this
- * class.
+ * A special {@link Thread} that provides fast access to {@link FastThreadLocal} variables.
  */
 public class FastThreadLocalThread extends Thread {
 
-    InternalThreadLocalMap threadLocalMap;
+    private InternalThreadLocalMap threadLocalMap;
 
     public FastThreadLocalThread() { }
 
@@ -51,5 +52,21 @@ public class FastThreadLocalThread extends Thread {
 
     public FastThreadLocalThread(ThreadGroup group, Runnable target, String name, long stackSize) {
         super(group, target, name, stackSize);
+    }
+
+    /**
+     * Returns the internal data structure that keeps the thread-local variables bound to this thread.
+     * Note that this method is for internal use only, and thus is subject to change at any time.
+     */
+    public final InternalThreadLocalMap threadLocalMap() {
+        return threadLocalMap;
+    }
+
+    /**
+     * Sets the internal data structure that keeps the thread-local variables bound to this thread.
+     * Note that this method is for internal use only, and thus is subject to change at any time.
+     */
+    public final void setThreadLocalMap(InternalThreadLocalMap threadLocalMap) {
+        this.threadLocalMap = threadLocalMap;
     }
 }

@@ -16,7 +16,7 @@
 
 package io.netty.buffer;
 
-import io.netty.util.internal.FastThreadLocal;
+import io.netty.util.concurrent.FastThreadLocal;
 import io.netty.util.internal.InternalThreadLocalMap;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.SystemPropertyUtil;

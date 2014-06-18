@@ -15,7 +15,7 @@
  */
 package io.netty.handler.codec.http;
 
-import io.netty.util.internal.FastThreadLocal;
+import io.netty.util.concurrent.FastThreadLocal;
 
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;

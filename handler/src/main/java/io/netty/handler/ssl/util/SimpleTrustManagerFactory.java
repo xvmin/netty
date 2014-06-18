@@ -16,7 +16,7 @@
 
 package io.netty.handler.ssl.util;
 
-import io.netty.util.internal.FastThreadLocal;
+import io.netty.util.concurrent.FastThreadLocal;
 
 import javax.net.ssl.ManagerFactoryParameters;
 import javax.net.ssl.TrustManager;

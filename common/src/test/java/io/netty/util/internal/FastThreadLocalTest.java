@@ -16,6 +16,8 @@
 
 package io.netty.util.internal;
 
+import io.netty.util.concurrent.FastThreadLocal;
+import io.netty.util.concurrent.FastThreadLocalThread;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;

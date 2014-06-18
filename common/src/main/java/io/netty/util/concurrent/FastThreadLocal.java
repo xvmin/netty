@@ -13,26 +13,42 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package io.netty.util.internal;
+package io.netty.util.concurrent;
+
+import io.netty.util.internal.InternalThreadLocalMap;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 
 /**
- * A special {@link ThreadLocal} which is operating over a predefined array, so it always operate in O(1) when called
- * from a {@link FastThreadLocalThread}. This permits less indirection and offers a slight performance improvement,
- * so is useful when invoked frequently.
+ * A special variant of {@link ThreadLocal} that yields higher access performan when accessed from a
+ * {@link FastThreadLocalThread}.
+ * <p>
+ * Internally, a {@link FastThreadLocal} uses a constant index in an array, instead of using hash code and hash table,
+ * to look for a variable.  Although seemingly very subtle, it yields slight performance advantage over using a hash
+ * table, and it is useful when accessed frequently.
+ * </p><p>
+ * To take advantage of this thread-local variable, your thread must be a {@link FastThreadLocalThread} or its subtype.
+ * By default, all threads created by {@link DefaultThreadFactory} are {@link FastThreadLocalThread} due to this reason.
+ * </p><p>
+ * Note that the fast path is only possible on threads that extend {@link FastThreadLocalThread}, because it requires
+ * a special field to store the necessary state.  An access by any other kind of thread falls back to a regular
+ * {@link ThreadLocal}.
+ * </p>
  *
- * The fast path is only possible on threads that extend FastThreadLocalThread, as this class
- * stores the necessary state. Access by any other kind of thread falls back to a regular ThreadLocal
- *
- * @param <V>
+ * @param <V> the type of the thread-local variable
+ * @see ThreadLocal
  */
 public class FastThreadLocal<V> {
 
     private static final int variablesToRemoveIndex = InternalThreadLocalMap.nextVariableIndex();
 
+    /**
+     * Removes all {@link FastThreadLocal} variables bound to the current thread.  This operation is useful when you
+     * are in a container environment, and you don't want to leave the thread local variables in the threads you do not
+     * manage.
+     */
     public static void removeAll() {
         InternalThreadLocalMap threadLocalMap = InternalThreadLocalMap.getIfSet();
         if (threadLocalMap == null) {
@@ -53,6 +69,12 @@ public class FastThreadLocal<V> {
         }
     }
 
+    /**
+     * Destroys the data structure that keeps all {@link FastThreadLocal} variables accessed from
+     * non-{@link FastThreadLocalThread}s.  This operation is useful when you are in a container environment, and you
+     * do not want to leave the thread local variables in the threads you do not manage.  Call this method when your
+     * application is being unloaded from the container.
+     */
     public static void destroy() {
         InternalThreadLocalMap.destroy();
     }

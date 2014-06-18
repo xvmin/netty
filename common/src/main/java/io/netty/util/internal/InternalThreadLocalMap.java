@@ -16,6 +16,9 @@
 
 package io.netty.util.internal;
 
+import io.netty.util.concurrent.FastThreadLocal;
+import io.netty.util.concurrent.FastThreadLocalThread;
+
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
@@ -25,6 +28,11 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * The internal data structure that stores the thread-local variables for Netty and all {@link FastThreadLocal}s.
+ * Note that this class is for internal use only and is subject to change at any time.  Use {@link FastThreadLocal}
+ * unless you know what you are doing.
+ */
 public final class InternalThreadLocalMap {
 
     public static final Object UNSET = new Object();
@@ -32,11 +40,11 @@ public final class InternalThreadLocalMap {
     private static ThreadLocal<InternalThreadLocalMap> slowThreadLocalMap;
     private static final AtomicInteger nextIndex = new AtomicInteger();
 
-    static InternalThreadLocalMap getIfSet() {
+    public static InternalThreadLocalMap getIfSet() {
         Thread thread = Thread.currentThread();
         InternalThreadLocalMap threadLocalMap;
         if (thread instanceof FastThreadLocalThread) {
-            threadLocalMap = ((FastThreadLocalThread) thread).threadLocalMap;
+            threadLocalMap = ((FastThreadLocalThread) thread).threadLocalMap();
         } else {
             ThreadLocal<InternalThreadLocalMap> slowThreadLocalMap = InternalThreadLocalMap.slowThreadLocalMap;
             if (slowThreadLocalMap == null) {
@@ -58,9 +66,9 @@ public final class InternalThreadLocalMap {
     }
 
     private static InternalThreadLocalMap fastGet(FastThreadLocalThread thread) {
-        InternalThreadLocalMap threadLocalMap = thread.threadLocalMap;
+        InternalThreadLocalMap threadLocalMap = thread.threadLocalMap();
         if (threadLocalMap == null) {
-            thread.threadLocalMap = threadLocalMap = new InternalThreadLocalMap();
+            thread.setThreadLocalMap(threadLocalMap = new InternalThreadLocalMap());
         }
         return threadLocalMap;
     }
@@ -79,11 +87,10 @@ public final class InternalThreadLocalMap {
         return ret;
     }
 
-    static void remove() {
+    public static void remove() {
         Thread thread = Thread.currentThread();
         if (thread instanceof FastThreadLocalThread) {
-            FastThreadLocalThread fastThread = (FastThreadLocalThread) thread;
-            fastThread.threadLocalMap = null;
+            ((FastThreadLocalThread) thread).setThreadLocalMap(null);
         } else {
             ThreadLocal<InternalThreadLocalMap> slowThreadLocalMap = InternalThreadLocalMap.slowThreadLocalMap;
             if (slowThreadLocalMap != null) {
@@ -92,7 +99,7 @@ public final class InternalThreadLocalMap {
         }
     }
 
-    static void destroy() {
+    public static void destroy() {
         slowThreadLocalMap = null;
     }
 
@@ -126,8 +133,7 @@ public final class InternalThreadLocalMap {
     private Map<Charset, CharsetEncoder> charsetEncoderCache;
     private Map<Charset, CharsetDecoder> charsetDecoderCache;
 
-    // HTTP, SSL, etc
-    InternalThreadLocalMap() {
+    private InternalThreadLocalMap() {
         Object[] array = new Object[32];
         Arrays.fill(array, UNSET);
         indexedVariables = array;

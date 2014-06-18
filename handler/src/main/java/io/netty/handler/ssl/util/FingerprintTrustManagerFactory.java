@@ -19,7 +19,7 @@ package io.netty.handler.ssl.util;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.util.internal.EmptyArrays;
-import io.netty.util.internal.FastThreadLocal;
+import io.netty.util.concurrent.FastThreadLocal;
 
 import javax.net.ssl.ManagerFactoryParameters;
 import javax.net.ssl.TrustManager;
